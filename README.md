@@ -1,4 +1,4 @@
-# 🎃 Owl CTF Halloween Theme 🦉
+# 🎃 OWL CTF Halloween Theme 🦉
 
 <div align="center">
 
