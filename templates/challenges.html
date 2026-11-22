@@ -1,0 +1,1088 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <!-- Compact Hero Section -->
+  <div class="jumbotron">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-12 text-center">
+          <h1 class="display-5 fw-bold mb-2 slide-up">
+            <i class="fas fa-flag text-red me-2"></i>
+            {% trans %}Challenges{% endtrans %}
+          </h1>
+          <p class="lead mb-0 slide-up" style="animation-delay: 0.1s;">
+            {% trans %}Test your skills and solve challenging problems{% endtrans %}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid px-4 py-3">
+    <!-- Error messages -->
+    <div class="row mb-3">
+      <div class="col-12">
+        {% include "components/errors.html" %}
+      </div>
+    </div>
+
+    <!-- Three Column Layout -->
+    <div class="row g-4" 
+         x-data="{
+           ...ChallengeBoard(),
+           selectedCategory: null,
+           
+           getFilteredCategories() {
+             if (this.selectedCategory) {
+               return [this.selectedCategory];
+             }
+             return this.getCategories();
+           },
+           
+           getTotalChallenges() {
+             if (!this.loaded || !this.challenges) return 0;
+             return this.challenges.length;
+           },
+           
+           getCategoryIcon(category) {
+             const icons = {
+               'web': 'fas fa-globe',
+               'crypto': 'fas fa-lock',
+               'pwn': 'fas fa-bug',
+               'reverse': 'fas fa-cogs',
+               'forensics': 'fas fa-search',
+               'misc': 'fas fa-puzzle-piece',
+               'binary': 'fas fa-file-code',
+               'steganography': 'fas fa-eye',
+               'osint': 'fas fa-satellite',
+               'network': 'fas fa-network-wired',
+               'mobile': 'fas fa-mobile-alt',
+               'blockchain': 'fas fa-link',
+               'ai': 'fas fa-robot',
+               'iot': 'fas fa-microchip'
+             };
+             const key = category.toLowerCase();
+             return icons[key] || 'fas fa-folder';
+           },
+           
+           getCategoryColor(category) {
+             const colors = {
+               'web': 'text-red',
+               'crypto': 'text-red-dark',
+               'pwn': 'text-red-accent',
+               'reverse': 'text-red-light',
+               'forensics': 'text-red',
+               'misc': 'text-red-dark',
+               'binary': 'text-red-accent',
+               'steganography': 'text-red-light',
+               'osint': 'text-red',
+               'network': 'text-red-light',
+               'mobile': 'text-red-dark'
+             };
+             const key = category.toLowerCase();
+             return colors[key] || 'text-red';
+           },
+           
+           getCategoryBadgeClass(category) {
+             const classes = {
+               'web': 'bg-red-subtle text-red',
+               'crypto': 'bg-red-dark-subtle text-red-dark',
+               'pwn': 'bg-red-accent-subtle text-red-accent', 
+               'reverse': 'bg-red-light-subtle text-red-light',
+               'forensics': 'bg-red-subtle text-red',
+               'misc': 'bg-dark text-red-light',
+               'binary': 'bg-red-accent-subtle text-red-accent',
+               'steganography': 'bg-dark text-red-light',
+               'osint': 'bg-red-subtle text-red',
+               'network': 'bg-red-light-subtle text-red-light',
+               'mobile': 'bg-red-dark-subtle text-red-dark'
+             };
+             const key = category.toLowerCase();
+             return classes[key] || 'bg-red-subtle text-red';
+           },
+           
+           getDifficultyFromName(challengeName) {
+             if (!challengeName) return 'medium';
+             const name = challengeName.toUpperCase();
+             if (name.startsWith('[EASY]')) return 'easy';
+             if (name.startsWith('[MEDIUM]')) return 'medium';
+             if (name.startsWith('[HARD]')) return 'hard';
+             return 'medium';
+           },
+           
+           getCleanChallengeName(challengeName) {
+             if (!challengeName) return '';
+             return challengeName.replace(/^\[(EASY|MEDIUM|HARD)\]\s*/i, '').trim();
+           },
+           
+           getDifficultyWeight(challengeName) {
+             if (!challengeName) return 2;
+             const name = challengeName.toUpperCase();
+             if (name.startsWith('[EASY]')) return 1;
+             if (name.startsWith('[MEDIUM]')) return 2;
+             if (name.startsWith('[HARD]')) return 3;
+             return 2;
+           },
+           
+           getSortedChallenges(category) {
+             const challenges = this.getChallenges(category);
+             return challenges.sort((a, b) => {
+               const difficultyA = this.getDifficultyWeight(a.name);
+               const difficultyB = this.getDifficultyWeight(b.name);
+               if (difficultyA !== difficultyB) {
+                 return difficultyA - difficultyB;
+               }
+               return a.value - b.value;
+             });
+           }
+         }" 
+         @load-challenges.window="loadChallenges()" 
+         @load-challenge.window="loadChallenge($event.detail)">
+      
+      <!-- Challenge Modal -->
+      <div x-ref="challengeWindow" id="challenge-window" class="modal fade challenge-modal-container" tabindex="-1" role="dialog" x-data="" x-html="$store.challenge.data.view"></div>
+
+      <!-- Left Sidebar - Category Filter -->
+      <div class="col-lg-2 col-md-3">
+        <div class="category-sidebar sticky-top" style="top: 90px;">
+          <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-dark border-0 py-3">
+              <h6 class="card-title mb-0 fw-bold text-white">
+                <i class="fas fa-filter me-2 text-red"></i>
+                {% trans %}Challenges{% endtrans %}
+              </h6>
+            </div>
+            <div class="card-body p-0 bg-dark">
+              <div x-show="loaded" class="category-list">
+                <!-- All Categories Option -->
+                <button 
+                  class="category-filter-btn w-100 text-start p-3 border-0 bg-transparent text-white"
+                  :class="!selectedCategory ? 'active' : ''"
+                  @click="selectedCategory = null"
+                >
+                  <i class="fas fa-th-large me-2 text-red"></i>
+                  {% trans %}All Categories{% endtrans %}
+                  <span class="badge bg-red-subtle text-red ms-auto" x-text="getTotalChallenges()"></span>
+                </button>
+                
+                <!-- Individual Categories -->
+                <template x-for="(category, idx) in getCategories()" :key="idx">
+                  <button 
+                    class="category-filter-btn w-100 text-start p-3 border-0 bg-transparent text-white"
+                    :class="selectedCategory === category ? 'active' : ''"
+                    @click="selectedCategory = category"
+                  >
+                    <i class="me-2" :class="getCategoryIcon(category) + ' ' + getCategoryColor(category)"></i>
+                    <span x-text="category"></span>
+                    <span class="badge ms-auto" :class="getCategoryBadgeClass(category)" x-text="getSortedChallenges(category).length"></span>
+                  </button>
+                </template>
+              </div>
+              
+              <!-- Loading state for sidebar -->
+              <div x-show="!loaded" class="text-center py-4">
+                <div class="spinner-container">
+                  <div class="spinner-circle"></div>
+                  <div class="spinner-circle"></div>
+                  <div class="spinner-circle"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content - Challenge Grid -->
+      <div class="col-lg-7 col-md-6">
+        <div class="challenges-main">
+          <!-- Loading State -->
+          <div x-show="!loaded" class="text-center py-5">
+            <div class="spinner-container mb-3">
+              <div class="spinner-circle"></div>
+              <div class="spinner-circle"></div>
+              <div class="spinner-circle"></div>
+            </div>
+            <p class="text-muted">{% trans %}Loading challenges...{% endtrans %}</p>
+          </div>
+
+          <!-- Challenge Grid -->
+          <div x-show="loaded">
+            <template x-for="(category, idx) in getFilteredCategories()" :key="idx">
+              <div class="challenge-category mb-4" x-show="!selectedCategory || selectedCategory === category">
+                <!-- Category Header (only show when not filtering) -->
+                <div x-show="!selectedCategory" class="category-header mb-3 p-3 rounded-3 glass-effect">
+                  <div class="d-flex align-items-center">
+                    <div class="category-icon me-3">
+                      <i :class="getCategoryIcon(category) + ' ' + getCategoryColor(category)" style="font-size: 1.2rem;"></i>
+                    </div>
+                    <div>
+                      <h4 class="mb-1 fw-bold text-white" x-text="category"></h4>
+                      <small class="text-muted">
+                        <span x-text="getSortedChallenges(category).length"></span> {% trans %}challenges{% endtrans %}
+                        · <span x-text="getSortedChallenges(category).filter(c => c.solved_by_me).length"></span> {% trans %}solved{% endtrans %}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Challenge Cards -->
+                <div class="row g-3">
+                  <template x-for="(c, challengeIdx) in getSortedChallenges(category)" :key="c.id">
+                    <div class="col-sm-6 col-xl-4">
+                      <div 
+                        class="challenge-card h-100 position-relative"
+                        :class="[
+                          c.solved_by_me ? 'challenge-solved' : '',
+                          'difficulty-' + getDifficultyFromName(c.name),
+                          'category-' + category.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                          ...c.tags.map((tag) => `tag-${tag.value.replace(/ /g, '-')}`),
+                        ]"
+                        @click="loadChallenge(c.id)"
+                      >
+                        <!-- Solved Badge -->
+                        <div x-show="c.solved_by_me" class="solved-badge position-absolute top-0 end-0 m-2">
+                          <i class="fas fa-check-circle text-success"></i>
+                        </div>
+
+                        <!-- Card Content -->
+                        <div class="card-body p-3 h-100 d-flex flex-column">
+                          <!-- Challenge Name -->
+                          <h6 class="card-title fw-bold mb-2 text-truncate text-white" x-text="getCleanChallengeName(c.name)"></h6>
+                          
+                          <!-- Points and Solve Count -->
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-red text-white px-2 py-1 rounded-pill fw-bold small">
+                              <i class="fas fa-star me-1"></i>
+                              <span x-text="c.value"></span> pts
+                            </span>
+                            <span class="badge bg-dark text-muted px-2 py-1 rounded-pill small">
+                              <i class="fas fa-users me-1"></i>
+                              <span x-text="c.solves || 0"></span> {% trans %}solved{% endtrans %}
+                            </span>
+                          </div>
+
+                          <!-- Difficulty and Blood Badges Row -->
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <!-- Difficulty Indicator -->
+                            <div class="difficulty-indicator">
+                              <template x-if="getDifficultyFromName(c.name) === 'easy'">
+                                <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill small">
+                                  <i class="fas fa-seedling me-1"></i>
+                                  {% trans %}Easy{% endtrans %}
+                                </span>
+                              </template>
+                              <template x-if="getDifficultyFromName(c.name) === 'medium'">
+                                <span class="badge bg-warning-subtle text-warning px-2 py-1 rounded-pill small">
+                                  <i class="fas fa-fire me-1"></i>
+                                  {% trans %}Medium{% endtrans %}
+                                </span>
+                              </template>
+                              <template x-if="getDifficultyFromName(c.name) === 'hard'">
+                                <span class="badge bg-danger-subtle text-danger px-2 py-1 rounded-pill small">
+                                  <i class="fas fa-skull me-1"></i>
+                                  {% trans %}Hard{% endtrans %}
+                                </span>
+                              </template>
+                            </div>
+                            
+                            <!-- First Blood Icons -->
+                            <div class="blood-badges" x-show="c.solves && c.solves > 0">
+                              <template x-if="c.solves && c.solves >= 1">
+                                <i class="fas fa-medal first-blood me-1" title="First Blood" style="font-size: 1rem;"></i>
+                              </template>
+                              <template x-if="c.solves && c.solves >= 2">
+                                <i class="fas fa-medal second-blood me-1" title="Second Blood" style="font-size: 1rem;"></i>
+                              </template>
+                              <template x-if="c.solves && c.solves >= 3">
+                                <i class="fas fa-medal third-blood me-1" title="Third Blood" style="font-size: 1rem;"></i>
+                              </template>
+                            </div>
+                          </div>
+
+                          <!-- Action Button -->
+                          <button 
+                            class="btn btn-outline-red w-100 rounded-pill fw-500 mt-auto btn-sm"
+                            :class="c.solved_by_me ? 'btn-outline-success' : 'btn-outline-red'"
+                            type="button"
+                            style="pointer-events: none;"
+                          >
+                            <template x-if="!c.solved_by_me">
+                              <span><i class="fas fa-play me-1"></i>{% trans %}Start{% endtrans %}</span>
+                            </template>
+                            <template x-if="c.solved_by_me">
+                              <span><i class="fas fa-check me-1"></i>{% trans %}Solved{% endtrans %}</span>
+                            </template>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Sidebar - User Info -->
+      <div class="col-lg-3 col-md-3">
+        <div class="user-sidebar sticky-top" style="top: 90px;">
+          <!-- User Stats Card -->
+            <div class="card border-0 shadow-sm rounded-3 mb-3" x-data="UserStats" x-init="loadUserStats()">
+              <div class="card-header text-center py-3 user-header">
+                <h6 class="mb-1 fw-bold text-white">{{ User.name }}</h6>
+                <small class="opacity-75 text-white">{% trans %}Competitor{% endtrans %}</small>
+              </div>
+            <div class="card-body p-3 bg-dark">
+              <div class="row g-3 text-center">
+                <div class="col-4">
+                  <div class="stat-item">
+                    <div class="stat-number fw-bold text-red" x-text="userScore || '{{ User.score }}'">{{ User.score }}</div>
+                    <div class="stat-label small text-muted">{% trans %}Points{% endtrans %}</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="stat-item">
+                    <div class="stat-number fw-bold text-success" x-text="solvedCount || 0">0</div>
+                    <div class="stat-label small text-muted">{% trans %}Solved{% endtrans %}</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="stat-item">
+                    <div class="stat-number fw-bold text-warning" x-text="userRank || '#{{ User.place or '-' }}'">#{{ User.place or '-' }}</div>
+                    <div class="stat-label small text-muted">{% trans %}Rank{% endtrans %}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Progress Bar -->
+              <div class="mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <small class="text-muted">{% trans %}Progress{% endtrans %}</small>
+                  <small class="text-muted">
+                    <span x-text="solvedCount || 0">0</span> / <span x-text="totalChallenges || 0">0</span>
+                  </small>
+                </div>
+                <div class="progress" style="height: 6px;">
+                  <div class="progress-bar bg-red" 
+                       :style="{ width: totalChallenges > 0 ? ((solvedCount / totalChallenges) * 100) + '%' : '0%' }">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity & Notifications Card -->
+          <div class="card border-0 shadow-sm rounded-3" x-data="ActivityFeed" x-init="loadActivityData()">
+            <div class="card-header border-0 py-3 bg-dark">
+              <!-- Tab Navigation -->
+              <nav class="nav nav-pills nav-fill" role="tablist">
+                <button 
+                  class="nav-link rounded-pill fw-500 px-3 py-2 text-white" 
+                  :class="activeTab === 'notifications' ? 'active' : ''"
+                  @click="activeTab = 'notifications'; markAllNotificationsAsRead()"
+                  type="button"
+                >
+                  <i class="fas fa-bell me-1"></i>
+                  {% trans %}Notifications{% endtrans %}
+                  <span x-show="unreadCount > 0" class="badge bg-danger ms-1 rounded-pill" x-text="unreadCount"></span>
+                </button>
+                <button 
+                  class="nav-link rounded-pill fw-500 px-3 py-2 text-white" 
+                  :class="activeTab === 'activity' ? 'active' : ''"
+                  @click="activeTab = 'activity'; loadRecentSolves()"
+                  type="button"
+                >
+                  <i class="fas fa-activity me-1"></i>
+                  {% trans %}Activity{% endtrans %}
+                </button>
+              </nav>
+            </div>
+            
+            <div class="card-body p-3 bg-dark" style="min-height: 200px;">
+              <!-- Notifications Tab Content -->
+              <div x-show="activeTab === 'notifications'" x-transition>
+                <div x-show="notifications.length === 0" class="text-center text-muted py-3">
+                  <i class="fas fa-bell-slash mb-2" style="font-size: 2rem; opacity: 0.3;"></i>
+                  <p class="mb-0 small">{% trans %}No notifications yet{% endtrans %}</p>
+                </div>
+                
+                <div x-show="notifications.length > 0">
+                  <template x-for="notification in notifications.slice(0, 3)" :key="notification.id">
+                    <div class="notification-item d-flex align-items-start mb-3 pb-2 border-bottom border-secondary" @click="markAllNotificationsAsRead()" style="cursor: pointer;">
+                      <div class="notification-icon me-2 mt-1">
+                        <i class="fas fa-info-circle text-red"></i>
+                      </div>
+                      <div class="notification-content flex-grow-1">
+                        <div class="notification-title small fw-semibold text-white" x-text="notification.title"></div>
+                        <div class="notification-text small text-muted" x-text="notification.content"></div>
+                        <div class="notification-time small text-muted mt-1" x-text="formatTime(notification.date)"></div>
+                      </div>
+                    </div>
+                  </template>
+                  
+                  <div class="text-center mt-3">
+                    <a href="{{ url_for('views.notifications') }}" class="btn btn-outline-red btn-sm rounded-pill" @click="markAllNotificationsAsRead()">
+                      <i class="fas fa-bell me-1"></i>
+                      {% trans %}View All{% endtrans %}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Activity Tab Content -->
+              <div x-show="activeTab === 'activity'" x-transition>
+                <div x-show="recentSolves.length === 0" class="text-center text-muted py-3">
+                  <i class="fas fa-chart-line mb-2" style="font-size: 2rem; opacity: 0.3;"></i>
+                  <p class="mb-0 small">{% trans %}No recent activity{% endtrans %}</p>
+                </div>
+                
+                <div x-show="recentSolves.length > 0">
+                  <template x-for="solve in recentSolves.slice(0, 5)" :key="solve.id">
+                    <div class="activity-item d-flex align-items-center mb-3 pb-2 border-bottom border-secondary">
+                      <div class="activity-icon me-2">
+                        <i class="fas fa-flag text-success"></i>
+                      </div>
+                      <div class="activity-content flex-grow-1">
+                        <div class="activity-user small fw-semibold text-white" x-text="solve.user"></div>
+                        <div class="activity-challenge small text-muted">
+                          {% trans %}solved{% endtrans %} <span x-text="solve.challenge"></span>
+                        </div>
+                        <div class="activity-time small text-muted" x-text="formatTime(solve.date)"></div>
+                      </div>
+                      <div class="activity-points">
+                        <span class="badge bg-red-subtle text-red rounded-pill small" x-text="solve.value + ' pts'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  
+                  <div class="text-center mt-3">
+                    <a href="{{ url_for('scoreboard.listing') }}" class="btn btn-outline-success btn-sm rounded-pill">
+                      <i class="fas fa-chart-line me-1"></i>
+                      {% trans %}View Scoreboard{% endtrans %}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* User Header Styles - Halloween theme */
+    .user-header {
+      background: linear-gradient(135deg, #b34700 0%, #ff7518 100%) !important;
+      color: white !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-bs-theme="dark"] .user-header {
+      background: linear-gradient(135deg, #b34700 0%, #ff7518 100%) !important;
+      color: white !important;
+    }
+
+    /* Three Column Layout Styles */
+    .category-sidebar {
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .user-sidebar {
+      min-height: auto;
+    }
+
+    .challenges-main {
+      min-height: auto;
+    }
+
+    /* Category Filter Buttons - Halloween theme */
+    .category-filter-btn {
+      transition: all 0.2s ease;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e5e5e5 !important;
+    }
+
+    .category-filter-btn:hover {
+      background: rgba(255, 117, 24, 0.1) !important;
+      color: #ffa64d !important;
+    }
+
+    .category-filter-btn.active {
+      background: rgba(255, 117, 24, 0.15) !important;
+      border-left: 4px solid #ff7518;
+      font-weight: 600;
+      color: #ff7518 !important;
+    }
+
+    .category-filter-btn:last-child {
+      border-bottom: none;
+    }
+
+    /* Dark mode adjustments for category sidebar */
+    [data-bs-theme="dark"] .category-filter-btn {
+      color: #e5e5e5 !important;
+      border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-bs-theme="dark"] .category-filter-btn:hover {
+      background: rgba(255, 117, 24, 0.15) !important;
+      color: #ffa64d !important;
+    }
+
+    [data-bs-theme="dark"] .category-filter-btn.active {
+      background: rgba(255, 117, 24, 0.2) !important;
+      color: #ff7518 !important;
+    }
+
+    /* Category Colors - Halloween theme */
+    .category-web { border-left-color: #ff7518 !important; }
+    .category-crypto { border-left-color: #b34700 !important; }
+    .category-pwn { border-left-color: #ffa64d !important; }
+    .category-reverse { border-left-color: #ffb347 !important; }
+    .category-forensics { border-left-color: #ff7518 !important; }
+    .category-misc { border-left-color: #8E8E93 !important; }
+
+    /* Custom color classes - Halloween theme */
+    .text-red { color: #ff7518 !important; }
+    .text-red-dark { color: #b34700 !important; }
+    .text-red-light { color: #ffa64d !important; }
+    .text-red-accent { color: #ff8c42 !important; }
+    
+    .bg-red { background: #ff7518 !important; }
+    .bg-red-dark { background: #b34700 !important; }
+    .bg-red-light { background: #ffa64d !important; }
+    .bg-red-accent { background: #ff8c42 !important; }
+    .bg-red-subtle { background: rgba(255, 117, 24, 0.15) !important; }
+    .bg-red-dark-subtle { background: rgba(179, 71, 0, 0.15) !important; }
+    .bg-red-light-subtle { background: rgba(255, 166, 77, 0.15) !important; }
+    .bg-red-accent-subtle { background: rgba(255, 140, 66, 0.15) !important; }
+
+    /* Challenge Card Styles - Halloween theme */
+    .challenge-card {
+      background: rgba(24, 12, 36, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      position: relative;
+      animation: slideUp 0.4s ease-out both;
+      min-height: 140px;
+    }
+
+    /* Blood Badges Styling - Halloween theme */
+    .blood-badges {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .first-blood {
+      color: #FFD700 !important;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.4));
+      animation: goldGlow 2s ease-in-out infinite;
+    }
+
+    .second-blood {
+      color: #C0C0C0 !important;
+      text-shadow: 0 0 10px rgba(192, 192, 192, 0.8);
+      filter: drop-shadow(0 2px 4px rgba(192, 192, 192, 0.4));
+      animation: silverGlow 2.5s ease-in-out infinite;
+    }
+
+    .third-blood {
+      color: #CD7F32 !important;
+      text-shadow: 0 0 10px rgba(205, 127, 50, 0.8);
+      filter: drop-shadow(0 2px 4px rgba(205, 127, 50, 0.4));
+      animation: bronzeGlow 3s ease-in-out infinite;
+    }
+
+    @keyframes goldGlow {
+      0%, 100% { 
+        transform: scale(1);
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      }
+      50% { 
+        transform: scale(1.1);
+        text-shadow: 0 0 15px rgba(255, 215, 0, 1);
+      }
+    }
+
+    @keyframes silverGlow {
+      0%, 100% { 
+        transform: scale(1);
+        text-shadow: 0 0 10px rgba(192, 192, 192, 0.8);
+      }
+      50% { 
+        transform: scale(1.05);
+        text-shadow: 0 0 15px rgba(192, 192, 192, 1);
+      }
+    }
+
+    @keyframes bronzeGlow {
+      0%, 100% { 
+        transform: scale(1);
+        text-shadow: 0 0 10px rgba(205, 127, 50, 0.8);
+      }
+      50% { 
+        transform: scale(1.05);
+        text-shadow: 0 0 15px rgba(205, 127, 50, 1);
+      }
+    }
+
+    .challenge-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 12px 48px rgba(255, 117, 24, 0.2);
+      border-color: #ff7518;
+    }
+
+    .challenge-card.challenge-solved {
+      border-color: #22c55e;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.05) 0%, rgba(34, 197, 94, 0.1) 100%);
+    }
+
+    .challenge-card.challenge-solved:hover {
+      border-color: #22c55e;
+      box-shadow: 0 12px 48px rgba(34, 197, 94, 0.3);
+    }
+
+    .challenge-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, transparent 0%, rgba(255, 117, 24, 0.1) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .challenge-card:hover .challenge-overlay {
+      opacity: 1;
+    }
+
+    .challenge-card.challenge-solved .challenge-overlay {
+      background: linear-gradient(135deg, transparent 0%, rgba(34, 197, 94, 0.1) 100%);
+    }
+
+    .bg-gradient-primary {
+      background: linear-gradient(135deg, #ff7518 0%, #b34700 100%);
+      color: white !important;
+    }
+
+    .challenge-action-btn {
+      transition: all 0.2s ease;
+    }
+
+    .challenge-action-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    /* Difficulty Colors - Halloween theme */
+    .difficulty-easy {
+      border-left: 4px solid #22c55e;
+    }
+
+    .difficulty-medium {
+      border-left: 4px solid #f59e0b;
+    }
+
+    .difficulty-hard {
+      border-left: 4px solid #ef4444;
+    }
+
+    /* Custom Loading Spinner - Halloween theme */
+    .spinner-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .spinner-circle {
+      width: 12px;
+      height: 12px;
+      background: #ff7518;
+      border-radius: 50%;
+      animation: spinnerBounce 1.4s ease-in-out both infinite;
+    }
+
+    .spinner-circle:nth-child(1) { animation-delay: -0.32s; }
+    .spinner-circle:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes spinnerBounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+
+    @keyframes bounceGentle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    /* Dark mode adjustments - Halloween theme */
+    [data-bs-theme="dark"] .card {
+      background: rgba(10, 5, 5, 0.95) !important;
+      border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    [data-bs-theme="dark"] .card-header.bg-light {
+      background: rgba(24, 12, 36, 0.8) !important;
+      color: #e5e5e5 !important;
+    }
+
+    [data-bs-theme="dark"] .challenge-card {
+      background: rgba(24, 12, 36, 0.8);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-bs-theme="dark"] .challenge-card:hover {
+      border-color: #ff7518;
+    }
+
+    [data-bs-theme="dark"] .challenge-card.challenge-solved {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.15) 100%);
+    }
+
+    /* Dark mode badge adjustments */
+    [data-bs-theme="dark"] .badge.bg-light {
+      background: rgba(255, 255, 255, 0.1) !important;
+      color: rgba(255, 255, 255, 0.8) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    [data-bs-theme="dark"] .badge.text-muted {
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    /* Dark mode glass effect adjustments */
+    [data-bs-theme="dark"] .glass-effect {
+      background: rgba(28, 15, 15, 0.8) !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    [data-bs-theme="dark"] .category-header {
+      background: rgba(24, 12, 36, 0.8) !important;
+      color: #e5e5e5 !important;
+    }
+
+    /* Button outline red */
+    .btn-outline-red {
+      border: 1px solid #ff7518;
+      color: #ff7518;
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-outline-red:hover {
+      background: #ff7518;
+      color: #fff;
+    }
+
+    .btn-outline-red:focus {
+      box-shadow: 0 0 0 0.25rem rgba(255, 117, 24, 0.25);
+    }
+
+    /* Nav pills active - Halloween theme */
+    .nav-pills .nav-link {
+      color: #9ca3af;
+      transition: all 0.2s ease;
+    }
+    
+    .nav-pills .nav-link:hover {
+      color: #ffa64d;
+      background: rgba(255, 117, 24, 0.05);
+    }
+    
+    .nav-pills .nav-link.active {
+      background: linear-gradient(135deg, #b34700 0%, #ff7518 100%) !important;
+      color: #fff !important;
+      box-shadow: 0 4px 15px rgba(255, 117, 24, 0.2);
+    }
+
+    /* Progress bar red */
+    .progress-bar.bg-red {
+      background: linear-gradient(90deg, #4a1a5c, #b34700, #ffa64d) !important;
+      box-shadow: 0 0 10px rgba(255, 117, 24, 0.3);
+    }
+
+    /* Badge red subtlte */
+    .bg-red-subtle {
+      background: rgba(255, 117, 24, 0.15) !important;
+      color: #ffa64d !important;
+      border: 1px solid rgba(255, 117, 24, 0.2);
+    }
+
+    /* Fix modal */
+    .challenge-modal-container {
+      outline: none !important;
+    }
+    
+    .challenge-modal-container:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    
+    .challenge-modal-container:focus-visible {
+      outline: none !important;
+    }
+    
+    .challenge-modal-container .modal-dialog {
+      outline: none !important;
+    }
+    
+    .challenge-modal-container .modal-content {
+      outline: none !important;
+      border: none !important;
+    }
+    
+    .challenge-modal-container .modal-content:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .challenge-card:hover {
+        transform: translateY(-4px) scale(1.01);
+      }
+      
+      .hero-animation {
+        display: none;
+      }
+    }
+  </style>
+
+  <script>
+    // ActivityFeed Alpine component for notifications and activity
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('ActivityFeed', () => ({
+        activeTab: 'notifications',
+        notifications: [],
+        recentSolves: [],
+        unreadCount: 0,
+        
+        async loadActivityData() {
+          await this.loadNotifications();
+          
+          this.initCTFdNotificationSystem();
+          
+          setInterval(() => {
+            this.loadNotifications();
+            if (this.activeTab === 'activity') {
+              this.loadRecentSolves();
+            }
+          }, 30000);
+        },
+        
+        initCTFdNotificationSystem() {
+          try {
+            if (typeof CTFd !== 'undefined' && CTFd.events && CTFd.events.controller) {
+              CTFd.events.controller.on('counter', (data) => {
+                this.unreadCount = data.count;
+                Alpine.store("unread_count", this.unreadCount);
+              });
+            }
+            
+            if (typeof CTFd !== 'undefined' && CTFd.events && CTFd.events.counter) {
+              this.unreadCount = CTFd.events.counter.unread.getAll().length;
+              Alpine.store("unread_count", this.unreadCount);
+            }
+          } catch (error) {
+            console.log('Error initializing CTFd notification system:', error);
+          }
+        },
+        
+        async loadNotifications() {
+          try {
+            const response = await CTFd.fetch('/api/v1/notifications');
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success) {
+                this.notifications = data.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+                this.unreadCount = CTFd.events.counter.unread.getAll().length;
+              }
+            }
+          } catch (error) {
+            console.log('Error loading notifications:', error);
+            this.notifications = [
+              {
+                id: 1,
+                title: '{% trans %}Welcome to WMCTF!{% endtrans %}',
+                content: '{% trans %}Good luck in the competition!{% endtrans %}',
+                date: new Date().toISOString(),
+                viewed: false
+              }
+            ];
+            this.unreadCount = 0;
+          }
+        },
+        
+        async loadRecentSolves() {
+          try {
+            const scoreboardResponse = await CTFd.fetch('/api/v1/scoreboard/top/15');
+            if (scoreboardResponse.ok) {
+              const scoreboardData = await scoreboardResponse.json();
+              if (scoreboardData.success) {
+                let challengesMap = {};
+                try {
+                  const challengesResponse = await CTFd.fetch('/api/v1/challenges');
+                  if (challengesResponse.ok) {
+                    const challengesData = await challengesResponse.json();
+                    if (challengesData.success) {
+                      challengesMap = challengesData.data.reduce((map, challenge) => {
+                        map[challenge.id] = challenge.name;
+                        return map;
+                      }, {});
+                    }
+                  }
+                } catch (e) {
+                  console.log('Could not load challenges for name mapping:', e);
+                }
+                
+                const recentSolves = [];
+                for (const team of Object.values(scoreboardData.data)) {
+                  if (team.solves && team.solves.length > 0) {
+                    const teamSolves = team.solves
+                      .filter(solve => solve.challenge_id !== null)
+                      .slice(-2)
+                      .map(solve => ({
+                        id: `${team.id}-${solve.challenge_id}-${solve.date}`,
+                        user: team.name,
+                        challenge: challengesMap[solve.challenge_id] || `题目 ${solve.challenge_id}`,
+                        value: solve.value || 0,
+                        date: solve.date
+                      }));
+                    recentSolves.push(...teamSolves);
+                  }
+                }
+                
+                this.recentSolves = recentSolves
+                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                  .slice(0, 8);
+                
+                if (this.recentSolves.length > 0) {
+                  return;
+                }
+              }
+            }
+            
+            const userResponse = await CTFd.fetch('/api/v1/users/me/solves');
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              if (userData.success && userData.data.length > 0) {
+                this.recentSolves = userData.data.slice(-5).map(solve => ({
+                  id: solve.id,
+                  user: '{{ User.name }}',
+                  challenge: solve.challenge?.name || `题目 ${solve.challenge_id}`,
+                  value: solve.challenge?.value || 0,
+                  date: solve.date
+                })).reverse();
+                return;
+              }
+            }
+            
+            this.recentSolves = [];
+            
+          } catch (error) {
+            console.log('Error loading recent solves:', error);
+            this.recentSolves = [];
+          }
+        },
+        
+        formatTime(dateStr) {
+          try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - date) / (1000 * 60));
+            
+            if (diffMinutes < 1) return '{% trans %}Just now{% endtrans %}';
+            if (diffMinutes < 60) return `${diffMinutes}m ago`;
+            if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+            return `${Math.floor(diffMinutes / 1440)}d ago`;
+          } catch (error) {
+            return dateStr;
+          }
+        },
+        
+        markAllNotificationsAsRead() {
+          try {
+            const unreadIds = CTFd.events.counter.unread.getAll();
+            
+            unreadIds.forEach(notificationId => {
+              CTFd._functions.events.eventRead(notificationId);
+            });
+            
+            this.unreadCount = CTFd.events.counter.unread.getAll().length;
+            Alpine.store("unread_count", this.unreadCount);
+            
+            console.log('All notifications marked as read');
+          } catch (error) {
+            console.log('Error marking notifications as read:', error);
+          }
+        }
+      }));
+      
+      // UserStats Alpine component for real-time user data
+      Alpine.data('UserStats', () => ({
+        userScore: null,
+        solvedCount: 0,
+        userRank: null,
+        totalChallenges: 0,
+        
+        async loadUserStats() {
+          try {
+            const userResponse = await CTFd.fetch('/api/v1/users/me');
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              if (userData.success) {
+                this.userScore = userData.data.score;
+                this.userRank = userData.data.place ? `#${userData.data.place}` : '#-';
+              }
+            }
+            
+            const solvesResponse = await CTFd.fetch('/api/v1/users/me/solves');
+            if (solvesResponse.ok) {
+              const solvesData = await solvesResponse.json();
+              if (solvesData.success) {
+                this.solvedCount = solvesData.meta.count;
+              }
+            }
+            
+            const challengesResponse = await CTFd.fetch('/api/v1/challenges');
+            if (challengesResponse.ok) {
+              const challengesData = await challengesResponse.json();
+              if (challengesData.success) {
+                this.totalChallenges = challengesData.data.length;
+              }
+            }
+          } catch (error) {
+            console.log('Error loading user stats:', error);
+            this.userScore = '{{ User.score }}';
+            this.userRank = '{{ User.place and "#" ~ User.place or "#-" }}';
+          }
+        },
+        
+        init() {
+          this.$watch('$store.challenge.data', (value) => {
+            this.loadUserStats();
+          });
+          
+          this.$el.addEventListener('load-challenges', () => {
+            this.loadUserStats();
+          });
+        }
+      }));
+    });
+  </script>
+
+{% endblock %}
+
+{% block scripts %}
+  {{ Assets.js("assets/js/challenges.js") }}
+{% endblock %}
